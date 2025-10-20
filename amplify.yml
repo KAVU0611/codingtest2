@@ -1,0 +1,18 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - node -v
+        build:
+          commands:
+            - node scripts/build-json.js
+      artifacts:
+        baseDirectory: public
+        files:
+          - '**/*'
+      cache:
+        paths: []
+    appRoot: /
+
