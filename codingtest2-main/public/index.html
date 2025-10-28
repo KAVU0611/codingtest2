@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playlist</title>
+  <style>
+    body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;margin:20px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ddd;padding:6px}
+    th{background:#f5f5f5;text-align:left}
+    input[type=text]{width:180px}
+    .row{margin:6px 0}
+    .controls label{margin-right:12px}
+  </style>
+  <script>
+    async function loadSongs(){
+      const res = await fetch('songs.json');
+      if(!res.ok){
+        document.getElementById('status').textContent = 'Error loading songs.json';
+        return [];
+      }
+      return await res.json();
+    }
+    function normalize(s){ return (s||'').trim().toLowerCase(); }
+    function render(list){
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = '';
+      for(const s of list){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${s.albumName}</td><td>${s.trackNumber}</td><td>${s.title}</td><td>${s.artist}</td><td>${s.duration}</td>`;
+        tbody.appendChild(tr);
+      }
+      document.getElementById('status').textContent = 'Total songs: ' + list.length;
+    }
+    function applyFilters(data){
+      const album = normalize(document.getElementById('album').value);
+      const artist = normalize(document.getElementById('artist').value);
+      const titlePrefix = normalize(document.getElementById('titlePrefix').value);
+      const sortDuration = document.getElementById('sortDuration').checked;
+      let list = data.filter(s =>
+        (!album || normalize(s.albumName).includes(album)) &&
+        (!artist || normalize(s.artist).includes(artist)) &&
+        (!titlePrefix || normalize(s.title).startsWith(titlePrefix))
+      );
+      if(sortDuration){
+        list = list.slice().sort((a,b)=>{
+          const av = a.durationSeconds >= 0 ? a.durationSeconds : Number.MAX_SAFE_INTEGER;
+          const bv = b.durationSeconds >= 0 ? b.durationSeconds : Number.MAX_SAFE_INTEGER;
+          if (av !== bv) return av - bv;
+          const an = a.albumName.toLowerCase();
+          const bn = b.albumName.toLowerCase();
+          if (an !== bn) return an < bn ? -1 : 1;
+          return a.trackNumber - b.trackNumber;
+        });
+      } else {
+        list = list.slice().sort((a,b)=>{
+          const an = a.albumName.toLowerCase();
+          const bn = b.albumName.toLowerCase();
+          if (an !== bn) return an < bn ? -1 : 1;
+          return a.trackNumber - b.trackNumber;
+        });
+      }
+      render(list);
+    }
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      const data = await loadSongs();
+      const apply = ()=>applyFilters(data);
+      document.getElementById('reload').addEventListener('click', apply);
+      apply();
+    });
+  </script>
+  </head>
+  <body>
+    <h2>Playlist</h2>
+    <div class="row controls">
+      <label>Album: <input id="album" type="text"></label>
+      <label>Artist: <input id="artist" type="text"></label>
+      <label>Title prefix: <input id="titlePrefix" type="text"></label>
+      <label><input id="sortDuration" type="checkbox"> Sort by duration</label>
+      <button id="reload">Reload</button>
+    </div>
+    <div class="row" id="status"></div>
+    <table>
+      <thead><tr><th>Album</th><th>#</th><th>Title</th><th>Artist</th><th>Duration</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </body>
+  </html>
+

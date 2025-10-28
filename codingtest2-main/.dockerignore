@@ -1,0 +1,13 @@
+out/
+src/main/java/**/*.class
+src/main/java/playlist-app.jar
+.git
+.gitignore
+.vscode
+**/.DS_Store
+**/Thumbs.db
+node_modules/
+public/
+scripts/
+amplify.yml
+
