@@ -1,0 +1,58 @@
+name: Frontend Build & Deploy
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard required secrets
+        shell: bash
+        run: |
+          set -e
+          for v in AWS_ROLE_TO_ASSUME AWS_REGION FRONTEND_DEPLOY_BUCKET FRONTEND_DISTRIBUTION_ID; do
+            [ -n "${!v}" ] || { echo "::error::missing secret $v"; exit 1; }
+          done
+        env:
+          AWS_ROLE_TO_ASSUME:      ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          AWS_REGION:              ${{ secrets.AWS_REGION }}
+          FRONTEND_DEPLOY_BUCKET:  ${{ secrets.FRONTEND_DEPLOY_BUCKET }}
+          FRONTEND_DISTRIBUTION_ID:${{ secrets.FRONTEND_DISTRIBUTION_ID }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region:     ${{ secrets.AWS_REGION }}
+          audience: sts.amazonaws.com
+          output-env-credentials: true
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+      - name: Upload to S3
+        shell: bash
+        env:
+          BUCKET: ${{ secrets.FRONTEND_DEPLOY_BUCKET }}
+        run: |
+          set -e
+          aws s3 sync frontend/dist/ s3://$BUCKET/ --delete \
+            --exclude index.html --cache-control "public, max-age=31536000"
+          aws s3 cp frontend/dist/index.html s3://$BUCKET/index.html \
+            --cache-control "no-cache, max-age=0"
+
+      - name: CloudFront Invalidate
+        run: aws cloudfront create-invalidation --distribution-id "${{ secrets.FRONTEND_DISTRIBUTION_ID }}" --paths "/*"
